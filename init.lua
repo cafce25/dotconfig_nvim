@@ -30,6 +30,7 @@ require('lazy').setup({
   'tpope/vim-sleuth',       -- Heuristically set buffer options
   'tpope/vim-surround',     -- Delete/change/add parentheses/quotes/XML-tags/much more with ease
   'tpope/vim-unimpaired',   -- Pairs of handy bracket mappings
+  'tpope/vim-dadbod',       -- Modern database interface for Vim
 
   "vimwiki/vimwiki",
 
@@ -174,25 +175,36 @@ require('lazy').setup({
 
   -- language specifics
   "rust-lang/rust.vim",
-  "slint-ui/vim-slint",
-  -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
-  --    You can use this folder to prevent any conflicts with this init.lua if you're interested in keeping
-  --    up-to-date with whatever is in the kickstart repo.
-  --    Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  --
-  --    For additional information see: https://github.com/folke/lazy.nvim#-structuring-your-plugins
-  -- { import = 'custom.plugins' },
+  {
+    'stevearc/oil.nvim',
+    ---@module 'oil'
+    ---@type oil.SetupOpts
+    opts = {},
+    -- Optional dependencies
+    dependencies = { { "echasnovski/mini.icons", opts = {} } },
+    -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if prefer nvim-web-devicons
+  },
 }, {})
 
+vim.g.firenvim_config = {
+  localSettings = {
+    ["https?://[^/]*.twitch.tv/*"] = {
+      takeover = "never",
+    },
+    ["https?://[^/]*.openai.com/*"] = {
+      takeover = "never",
+    }
+  }
+}
 -- [[ Setting options ]]
 -- See `:help vim.o`
--- NOTE: You can change these options as you wish!
 
 -- Set highlight on search
 vim.o.hlsearch = true
 
 -- Make line numbers default
 vim.wo.number = true
+vim.wo.relativenumber = true
 
 -- Enable mouse mode
 vim.o.mouse = 'a'
@@ -208,7 +220,7 @@ vim.o.breakindent = true
 -- Save undo history
 vim.o.undofile = true
 
--- Case-insensitive searching UNLESS \C or capital in search
+-- Case insensitive searching UNLESS /C or capital in search
 vim.o.ignorecase = true
 vim.o.smartcase = true
 
@@ -217,6 +229,7 @@ vim.wo.signcolumn = 'yes'
 
 -- Decrease update time
 vim.o.updatetime = 250
+vim.o.timeout = true
 vim.o.timeoutlen = 300
 
 -- Set completeopt to have a better completion experience
@@ -284,14 +297,31 @@ vim.keymap.set('n', '<leader>sd', require('telescope.builtin').diagnostics, { de
 -- See `:help nvim-treesitter`
 require('nvim-treesitter.configs').setup {
   -- Add languages to be installed here that you want installed for treesitter
-  ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'tsx', 'typescript', 'vimdoc', 'vim', 'json', 'toml',
-    'php', 'slint', },
+  ensure_installed = {
+    'c',
+    'cpp',
+    'go',
+    'json',
+    'lua',
+    'markdown',
+    'php',
+    'python',
+    'rust',
+    'sql',
+    'toml',
+    'tsx',
+    'twig',
+    'typescript',
+    'vim',
+    'vimdoc',
+    'zig',
+  },
 
   -- Autoinstall languages that are not installed. Defaults to false (but you can change for yourself!)
   auto_install = false,
 
   highlight = { enable = true },
-  indent = { enable = true },
+  indent = { enable = true, disable = { 'python' } },
   incremental_selection = {
     enable = true,
     keymaps = {
@@ -409,18 +439,19 @@ end
 local servers = {
   -- clangd = {},
   -- gopls = {},
-  pyright = {},
-  rust_analyzer = {},
-  tsserver = {},
   html = { filetypes = { 'html', 'twig', 'hbs' } },
-
   lua_ls = {
     Lua = {
       workspace = { checkThirdParty = false },
       telemetry = { enable = false },
     },
   },
-  slint_lsp = {},
+  phpactor = {},
+  psalm = {},
+  pyright = {},
+  rust_analyzer = {},
+  sqlls = {},
+  ts_ls = {},
 }
 
 -- Setup neovim lua configuration
@@ -445,13 +476,12 @@ mason_lspconfig.setup_handlers {
       settings = servers[server_name],
       filetypes = (servers[server_name] or {}).filetypes,
     }
-  end
+  end,
 }
 
--- [[ Configure nvim-cmp ]]
--- See `:help cmp`
+-- nvim-cmp setup
 local cmp = require 'cmp'
-local lspkind = require "lspkind"
+local lspkind = require 'lspkind'
 local luasnip = require 'luasnip'
 require('luasnip.loaders.from_vscode').lazy_load()
 luasnip.config.setup {}
@@ -472,6 +502,24 @@ cmp.setup {
       behavior = cmp.ConfirmBehavior.Replace,
       select = true,
     },
+    ['<Tab>'] = cmp.mapping(function(fallback)
+      if cmp.visible() then
+        cmp.select_next_item()
+      elseif luasnip.expand_or_locally_jumpable() then
+        luasnip.expand_or_jump()
+      else
+        fallback()
+      end
+    end, { 'i', 's' }),
+    ['<S-Tab>'] = cmp.mapping(function(fallback)
+      if cmp.visible() then
+        cmp.select_prev_item()
+      elseif luasnip.locally_jumpable(-1) then
+        luasnip.jump(-1)
+      else
+        fallback()
+      end
+    end, { 'i', 's' }),
   },
   sources = {
     { name = 'nvim_lsp' },
@@ -491,10 +539,4 @@ cmp.setup {
       },
     },
   },
-  -- experimental = {
-  --   native_menu = false,
-  --   ghost_text = true,
-  -- },
 }
-
--- vim: ts=2 sts=2 sw=2 et
